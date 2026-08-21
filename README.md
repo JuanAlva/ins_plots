@@ -1,47 +1,62 @@
-# Kvaser J1939 Injector
+# ControlBox DB / INS — datos crudos y graficos
 
-Inyecta tramas J1939 (CAN 29-bit, 250kbps) via Kvaser U100 usando la librería oficial
-`canlib` (no `python-can`).
+Analisis de las campanias de prueba del INS montado en el vehiculo: se juntan los
+datos crudos de cada salida a campo (log de `candump` del bus CAN, backup de la base
+`ControlBox.db`, capturas de CoolTerm) con los CSV que salen de los readers, y se
+grafican trayectoria, velocidad/marcha y orientacion.
 
-**Solo funciona con un JAC JS2** — las tramas 11-bit (`28D`=marcha, `271`=velocidad) que
-lee `replay`/`bridge` vienen de ese vehículo específico; otro modelo puede usar IDs/formato
-distintos.
+Los readers que producen los CSV **no viven aqui**, viven en el repo
+`hwt_candump_reader` (`scripts/InsReader.py`, `scripts/InsReaders2.py`,
+`scripts/InsReconstruct.py`). Este repo es solo datos + notebooks.
 
-## Archivos
+## Estructura
 
-- `can_kvaser.py` — inyección directa, replay de log, y bridge desde ELM327
-- `can_log_grande.txt` — log de ejemplo del JAC JS2 para probar `replay`
-
-## Requisitos
-
-- Driver propietario de Kvaser (`mhydra`/`kvcommon` vía dkms, de
-  [astuff/kvaser-linuxcan](https://github.com/astuff/kvaser-linuxcan)) — no `kvaser_usb`/SocketCAN.
-- `pip install -r requirements.txt` (`canlib` no está en PyPI, ver ese archivo).
-- U100 por USB, canal 0.
-
-## Uso
-
-```bash
-python3 can_kvaser.py speed 100 --repeat --interval 0.5
-python3 can_kvaser.py gear 2 --repeat --interval 0.5      # -1=R, 0=N, 1,2,3...=marchas
-
-python3 can_kvaser.py replay can_log_grande.txt --realtime   # log del JAC -> J1939
-python3 can_kvaser.py bridge                                  # ELM327 en vivo -> J1939
+```
+data/
+  raw/<fecha>/[<test>/]     datos crudos: candump-*.log, ControlBox*.db,
+                            capturas CoolTerm, fotos de campo
+  processed/<fecha>/        CSV que salen de los readers (ins_data_*, speed_gear_*,
+                            prueba_*), con la misma subcarpeta de test que el crudo
+  processed/                CSV sueltos cuya campania no esta determinada
+outputs/[<fecha>/]          graficos (png), mapas (html) y CSV derivados de los notebooks
+notebooks/                  los analisis
+scripts/                    scripts sueltos de ploteo
+modules/paths.py            RAW / PROC / OUT — las rutas, resueltas desde la raiz del repo
+docs/                       notas
 ```
 
-## Codificación J1939
+Las fechas son ISO (`2026-08-18`) y corresponden al dia de la prueba, no al dia en
+que se proceso el archivo.
 
-ID: `(6 << 26) | (pgn << 8) | source_address`
+Regla para ubicar un archivo nuevo: `.log` / `.db` / captura / foto -> `data/raw/<fecha>/`;
+CSV de un reader -> `data/processed/<fecha>/`; cualquier cosa que un notebook pueda
+volver a generar -> `outputs/`.
 
-- **Velocidad** — PGN `0xFEF1` (CCVS), SA `0x11`: `FF <lo> <hi> CC FF FF 1F FF`, velocidad×256 little-endian en bytes 1-2.
-- **Marcha** — PGN `0xF005` (ETC1), SA `0x03`: `<g> 00 00 <g> 20 4E 4E 32`, `<g>` = marcha + 125.
+## Rutas en el codigo
 
-El JAC (automático) solo reporta `P/R/N/D`, se mapea `P/N→0, R→-1, D→1` (`GEAR_TO_J1939`).
+Nada usa rutas relativas al directorio de trabajo. Los notebooks arrancan con:
 
-## Fuente: tramas del JAC JS2 (ELM327, `ATMA`)
+```python
+import sys
+from pathlib import Path
+ROOT = Path.cwd().parent if Path.cwd().name == "notebooks" else Path.cwd()
+sys.path.insert(0, str(ROOT))
+from modules.paths import RAW, PROC, OUT
 
-`CAN_ID B0 B1 B2 B3 B4 B5 B6 B7`:
-- `28D` → marcha, byte `B2` (`01`=P, `02`=R, `03`=N, `04`=D)
-- `271` → velocidad, `((B2 << 8) | B3) / 256.0` km/h
+df = pd.read_csv(PROC / "2026-08-18/test3/ins_data_prueba_50.csv")
+```
 
-`bridge` configura el ELM327 (`/dev/ttyUSB0`, 115200): `ATZ`, `ATE0`, `ATL0`, `ATH1`, `ATSP6`, `0100`, `ATMA`.
+y los scripts con `sys.path.insert(0, str(Path(__file__).resolve().parents[1]))`, asi
+que corren desde cualquier directorio:
+
+```bash
+.venv/Scripts/python.exe scripts/plot_test.py
+```
+
+## Notas
+
+- `abs_z` / `pos_z` del INS acumula deriva vertical (baja en los dos sentidos de
+  marcha); para planta usar `abs_x` / `abs_y`. Detalle en el repo `hwt_candump_reader`.
+- `scripts/InsReaders2.py` es una copia divergente del reader del otro repo y no corre
+  aqui tal cual: le faltan `modules/Candump.py`, `modules/J1939.py` y `modules/Utils.py`.
+- `requirements.txt` es el volcado del `.venv` de Windows (`.venv/Scripts/python.exe`).

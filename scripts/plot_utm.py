@@ -1,7 +1,13 @@
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from modules.paths import PROC, OUT
+
 import pandas as pd, matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-df = pd.read_csv('prueba1.csv', dtype=str)
+df = pd.read_csv(PROC / "prueba1.csv", dtype=str)
 f = lambda x: int.from_bytes(bytes.fromhex(x), byteorder="little", signed=True)
 for c in [c for c in df.columns if c not in ("time","raw")]:
     df[c] = df[c].apply(f)
@@ -18,5 +24,5 @@ ax.annotate(f"Fin\n({xf:.1f}, {yf:.1f})",(xf,yf),textcoords="offset points",xyte
 ax.set_xlabel("utm_x [m] (Este)"); ax.set_ylabel("utm_y [m] (Norte)")
 ax.set_title("Trayectoria UTM (utm_x vs utm_y)")
 ax.set_aspect("equal", adjustable="datalim"); ax.grid(True, alpha=0.3); ax.legend()
-plt.tight_layout(); plt.savefig("p_utm.png", dpi=90)
+plt.tight_layout(); plt.savefig(OUT / "p_utm.png", dpi=90)
 print("ok")
