@@ -3,17 +3,19 @@
 # @Date:   2020-11-06 15:25:58
 # @Last Modified by:   Jorge Miranda
 # @Last Modified time: 2023-10-31 15:05:37
+# OJO: copia divergente de scripts/InsReaders2.py del repo hwt_candump_reader.
+# No corre en este repo tal cual: modules/Candump.py, modules/J1939.py y
+# modules/Utils.py viven alla (aqui modules/ solo tiene paths.py).
 import datetime
 import csv
 import modules.Candump as Candump
 import modules.J1939 as J1939
 from modules.Utils import NumberFromBuffer
 
-
 # PGNs de interes
-PGN_INS = 0xF019     # posicion INS
-PGN_SPEED = 0xFEF1   # velocidad (CCVS)
-PGN_GEAR = 0xF005    # marcha (ETC1)
+PGN_INS = 0xF019  # posicion INS
+PGN_SPEED = 0xFEF1  # velocidad (CCVS)
+PGN_GEAR = 0xF005  # marcha (ETC1)
 
 # En CAN0 la velocidad y la marcha llegan con direccion de origen (SA) 0xF8
 # (los IDs terminan en F8: 18FEF1F8 / 18F005F8). El README inyecta con SA 0x11/0x03,
@@ -97,10 +99,15 @@ class InsReader(Candump.CanReader):
 
 
 if __name__ == "__main__":
-    ins_reader = InsReader("ins_data_prueba_20.csv", "speed_gear_prueba_20.csv")
+    from pathlib import Path
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from modules.paths import RAW, PROC
+
+    ins_reader = InsReader(PROC / "ins_data_prueba_20.csv", PROC / "speed_gear_prueba_20.csv")
     try:
         # ins_reader.RemoteReader("can0", "192.168.3.72", "root", "mssadminkey2018", "system_key")
-        ins_reader.LogReader("04_08/candump-2026-08-04_212438.log")
+        ins_reader.LogReader(str(RAW / "2026-08-14/candump-2026-08-14_201830.log"))
         # ins_reader.RemoteReader("can0", "192.168.2.10", "root", "root")
     finally:
         ins_reader.close()
